@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Multi Transaksi Unlimited</title>
+
+<style>
+body{font-family:Arial;background:#f4f6f8;padding:20px}
+.container{max-width:900px;background:#fff;padding:20px;border-radius:8px}
+h2{text-align:center}
+
+input,select,button{padding:10px;margin-top:8px}
+.full{width:100%}
+
+.row{display:flex;gap:10px;margin-top:8px}
+.row input{flex:1}
+
+button{border:none;color:#fff;cursor:pointer}
+.add{background:#28a745}
+.run{background:#007bff;width:49%}
+.stop{background:#dc3545;width:49%}
+.remove{background:#6c757d}
+
+.logs{display:flex;gap:10px;margin-top:15px}
+.log{flex:1;max-height:260px;overflow:auto;border:1px solid #ddd;padding:10px;border-radius:6px}
+.log h3{text-align:center;margin:0 0 8px 0;font-size:14px}
+
+.log div{padding:6px;border-radius:4px;font-size:13px;margin-bottom:4px}
+.ok{background:#d4edda}
+.fail{background:#f8d7da}
+.wait{background:#fff3cd}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h2>Multi Transaksi Unlimited</h2>
+
+<label>Produk</label>
+<select id="produk" class="full">
+  <option value="BPAL19">BPAL19</option>
+  <option value="CEKPLN">CEKPLN</option>
+  <option value="FMX10">AKRAB</option>
+</select>
+
+<label>Delay antar putaran (ms)</label>
+<input id="delay" class="full" type="number" value="0">
+
+<div id="list"></div>
+<button class="add full" onclick="addRow()">+ Tambah Nomor / ID</button>
+
+<div style="display:flex;gap:2%;margin-top:10px">
+  <button class="run" onclick="startSpam()">▶ START</button>
+  <button class="stop" onclick="stopSpam()">⛔ STOP</button>
+</div>
+
+<div class="logs">
+  <div class="log" id="logSuccess">
+    <h3>🟢 History Sukses</h3>
+  </div>
+  <div class="log" id="logFail">
+    <h3>🔴 History Gagal</h3>
+  </div>
+</div>
+
+</div>
+
+<script>
+/* ===== KONFIG ===== */
+const API_KEY = "B65759AD-0035-4BFA-A552-B96D80F6557F";
+const API_URL = "https://panel.khfy-store.com/api_v2/trx";
+
+/* ===== STATE ===== */
+let isRunning = false;
+let round = 0;
+
+/* ===== UTIL ===== */
+const uuid = () => crypto.randomUUID();
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function addRow(val=""){
+  const d=document.createElement("div");
+  d.className="row";
+  d.innerHTML=`
+    <input placeholder="No HP / ID PLN" value="${val}">
+    <button class="remove" onclick="this.parentElement.remove()">X</button>
+  `;
+  document.getElementById("list").appendChild(d);
+}
+
+/* ===== LOG ===== */
+function logSuccess(msg){
+  const d=document.createElement("div");
+  d.className="ok";
+  d.innerHTML=msg;
+  document.getElementById("logSuccess").prepend(d);
+}
+
+function logFail(msg,cls="fail"){
+  const d=document.createElement("div");
+  d.className=cls;
+  d.innerHTML=msg;
+  document.getElementById("logFail").prepend(d);
+}
+
+/* ===== HIT API ===== */
+async function hitAPI(produk, rowEl){
+  // 🔒 ANTI DOUBLE HIT
+  if(rowEl.dataset.running) return;
+  rowEl.dataset.running = "1";
+
+  const tujuan = rowEl.querySelector("input").value.trim();
+  const reff = uuid();
+  const url = `${API_URL}?produk=${produk}&tujuan=${tujuan}&reff_id=${reff}&api_key=${API_KEY}`;
+
+  try{
+    const r = await fetch(url);
+    const d = await r.json();
+
+    if(d && d.status === true){
+      logSuccess(`✅ [${tujuan}] SUKSES`);
+      rowEl.remove(); // 🔥 sukses dihapus
+      return;
+    }else{
+      logFail(`❌ [${tujuan}] GAGAL`);
+    }
+  }catch{
+    logFail(`🔥 [${tujuan}] API DOWN`);
+  }
+
+  // buka lock kalau gagal
+  delete rowEl.dataset.running;
+}
+
+/* ===== LOOP UNLIMITED ===== */
+async function startSpam(){
+  if(isRunning) return alert("Proses masih berjalan");
+
+  const produk = document.getElementById("produk").value;
+  const delay = parseInt(document.getElementById("delay").value||0);
+
+  isRunning = true;
+  round = 0;
+  logFail("🚀 TRANSAKSI DIMULAI", "wait");
+
+  while(isRunning){
+    const rows = [...document.querySelectorAll("#list .row")];
+
+    if(!rows.length){
+      logSuccess("🎉 SEMUA TRANSAKSI SUKSES – SELESAI");
+      isRunning = false;
+      break;
+    }
+
+    round++;
+    logFail(`⚡ PUTARAN ${round} (${rows.length} nomor aktif)`, "wait");
+
+    await Promise.allSettled(
+      rows.map(row => hitAPI(produk, row))
+    );
+
+    if(delay>0) await sleep(delay);
+  }
+
+  logFail("⛔ PROSES BERHENTI");
+}
+
+function stopSpam(){
+  isRunning = false;
+}
+</script>
+
+</body>
+</html>
