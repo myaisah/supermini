@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>akrab super mini</title>
+
+<style>
+body{font-family:Arial;background:#f4f6f8;padding:20px}
+.container{max-width:900px;background:#fff;padding:20px;border-radius:8px}
+h2{text-align:center}
+
+input,select,textarea,button{padding:10px;margin-top:8px}
+.full{width:100%}
+
+button{border:none;color:#fff;cursor:pointer}
+.run{background:#007bff;width:49%}
+.stop{background:#dc3545;width:49%}
+
+.logs{display:flex;gap:10px;margin-top:15px}
+.log{flex:1;max-height:260px;overflow:auto;border:1px solid #ddd;padding:10px;border-radius:6px}
+.log h3{text-align:center;margin:0 0 8px 0;font-size:14px}
+
+.log div{padding:6px;border-radius:4px;font-size:13px;margin-bottom:4px}
+.ok{background:#d4edda}
+.fail{background:#f8d7da}
+.wait{background:#fff3cd}
+
+/* ===== ANIMASI START ===== */
+@keyframes pulse {
+  0% { opacity:1 }
+  50% { opacity:.5 }
+  100% { opacity:1 }
+}
+.running{
+  background:#28a745 !important;
+  animation:pulse 1s infinite;
+  cursor:not-allowed;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h2>Multi Transaksi Unlimited</h2>
+
+<label>Produk</label>
+<select id="produk" class="full">
+  <option value="XLA14">AKRAB super mini</option>
+</select>
+
+<label>Daftar Nomor / ID</label>
+<textarea id="nomorList" class="full" rows="8"></textarea>
+
+<div style="display:flex;gap:2%;margin-top:10px">
+  <button class="run" id="btnStart" onclick="startSpam()">▶ START</button>
+  <button class="stop" onclick="stopSpam()">⛔ STOP</button>
+</div>
+
+<div class="logs">
+  <div class="log" id="logSuccess"><h3>🟢 Sukses</h3></div>
+  <div class="log" id="logFail"><h3>🔴 Gagal</h3></div>
+</div>
+
+</div>
+
+<script>
+/* ===== KONFIG ===== */
+const API_KEY = "B65759AD-0035-4BFA-A552-B96D80F6557F";
+const API_URL = "https://panel.khfy-store.com/api_v2/trx";
+
+const BATCH_SIZE = 2;
+const RETRY_DELAY = 5000; // ✅ 5 detik
+const MAX_ROUND = 2;
+
+/* ===== STATE ===== */
+let isRunning = false;
+let pointer = 0;
+let round = 1;
+
+/* ===== UTIL ===== */
+const uuid = () => crypto.randomUUID();
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ===== UI ===== */
+function setRunningUI(){
+  const btn=document.getElementById("btnStart");
+  btn.innerHTML="⏳ RUNNING...";
+  btn.classList.add("running");
+  btn.disabled=true;
+}
+function setStopUI(){
+  const btn=document.getElementById("btnStart");
+  btn.innerHTML="▶ START";
+  btn.classList.remove("running");
+  btn.disabled=false;
+}
+
+/* ===== LOG ===== */
+const logSuccessDiv=document.getElementById("logSuccess");
+const logFailDiv=document.getElementById("logFail");
+
+function logSuccess(msg){
+  const d=document.createElement("div");
+  d.className="ok";
+  d.innerHTML=msg;
+  logSuccessDiv.prepend(d);
+}
+function logFail(msg,cls="fail"){
+  const d=document.createElement("div");
+  d.className=cls;
+  d.innerHTML=msg;
+  logFailDiv.prepend(d);
+}
+
+/* ===== HIT API ===== */
+async function hitAPI(produk, tujuan){
+  try{
+    const r=await fetch(`${API_URL}?produk=${produk}&tujuan=${tujuan}&reff_id=${uuid()}&api_key=${API_KEY}`);
+    const d=await r.json();
+    d?.status ? logSuccess(`✅ ${tujuan}`) : logFail(`❌ ${tujuan}`);
+  }catch{
+    logFail(`🔥 ${tujuan} API DOWN`);
+  }
+}
+
+/* ===== MAIN ===== */
+async function startSpam(){
+  if(isRunning) return;
+  isRunning=true;
+  setRunningUI();
+
+  const produk=document.getElementById("produk").value;
+  const list=document.getElementById("nomorList").value
+    .split("\n").map(x=>x.trim()).filter(Boolean);
+
+  for(round=1;round<=MAX_ROUND && isRunning;round++){
+    let count=0;
+    logFail(`🔁 PUTARAN ${round}`,"wait");
+
+    while(count<list.length && isRunning){
+      let batch=[];
+      for(let i=0;i<BATCH_SIZE && count<list.length;i++){
+        batch.push(list[pointer]);
+        pointer=(pointer+1)%list.length;
+        count++;
+      }
+
+      logFail(`⚡ ${batch.join(", ")}`,"wait");
+
+      for(let n of batch){
+        if(!isRunning) break;
+        await hitAPI(produk,n);
+      }
+
+      if(count<list.length){
+        logFail("⏳ TUNGGU 5 DETIK","wait");
+        await sleep(RETRY_DELAY);
+      }
+    }
+  }
+
+  isRunning=false;
+  setStopUI();
+  logSuccess("🎉 PROSES SELESAI");
+}
+
+function stopSpam(){
+  isRunning=false;
+  setStopUI();
+  logFail("⛔ DIHENTIKAN","wait");
+}
+</script>
+
+</body>
+</html>
